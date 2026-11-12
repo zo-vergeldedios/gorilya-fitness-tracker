@@ -1,7 +1,25 @@
 import { useState, useEffect } from "react";
+import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 // import fitDexLogo from "./assets/fitDex-logo.png";
 import gorilyaLogo from "./assets/gorilya.png";
 // import "./App.css";
+
+function compareWorkoutOrder(a, b) {
+  return a.workout_index - b.workout_index || a.id - b.id;
+}
 
 function ShowErrorOrSuccessMessage({ message }) {
   return <span id="successAndErrorMessage">{message}</span>;
@@ -12,48 +30,37 @@ function EditWorkout({
   workouts,
   setWorkouts,
   setSuccessAndErrorMessage,
-  weekdayIndex,
   userToken,
+  draft,
+  updateDraft,
+  saveWorkout,
 }) {
-  const [updatedWorkout, setUpdatedWorkout] = useState(workout.workout_name);
-  const [updatedReps, setUpdatedReps] = useState(workout.reps);
-  const [updatedSets, setUpdatedSets] = useState(workout.sets);
-  const [updatedWeight, setUpdatedWeight] = useState(workout.weight);
-  const [updatedIndex, setUpdatedIndex] = useState(workout.workout_index);
-
   return (
     <li>
       <input
-        id="workout-index"
-        type="number"
-        onChange={(e) => setUpdatedIndex(e.target.value)}
-        className="li-info li-workout-name"
-        value={updatedIndex || 0}
-      />
-      <input
         id="workout-name-input"
         type="text"
-        onChange={(e) => setUpdatedWorkout(e.target.value)}
+        onChange={(e) => updateDraft(workout.id, "workout_name", e.target.value)}
         className="li-info li-workout-name"
-        value={updatedWorkout}
+        value={draft?.workout_name ?? workout.workout_name}
       />
       <input
         type="text"
-        onChange={(e) => setUpdatedSets(e.target.value)}
+        onChange={(e) => updateDraft(workout.id, "sets", e.target.value)}
         className="li-info"
-        value={updatedSets}
+        value={draft?.sets ?? workout.sets}
       />
       <input
         type="text"
-        onChange={(e) => setUpdatedReps(e.target.value)}
+        onChange={(e) => updateDraft(workout.id, "reps", e.target.value)}
         className="li-info"
-        value={updatedReps}
+        value={draft?.reps ?? workout.reps}
       />
       <input
         type="text"
-        onChange={(e) => setUpdatedWeight(e.target.value)}
+        onChange={(e) => updateDraft(workout.id, "weight", e.target.value)}
         className="li-info"
-        value={updatedWeight}
+        value={draft?.weight ?? workout.weight}
       />
       <button
         className="saveAndDeleteButton"
@@ -87,53 +94,7 @@ function EditWorkout({
       </button>
       <button
         className="saveAndDeleteButton"
-        onClick={() => {
-          setWorkouts(
-            workouts.map((wo) => {
-              if (workout.id == wo.id) {
-                wo.workout_name = updatedWorkout;
-                wo.sets = updatedSets;
-                wo.reps = updatedReps;
-                wo.weight = updatedWeight;
-                wo.editing = false;
-                wo.weekday_index = weekdayIndex;
-                wo.workout_index = updatedIndex;
-                console.log(wo);
-              }
-              return wo;
-            }),
-          );
-          fetch(`${import.meta.env.VITE_API_URL}/update`, {
-            method: "POST",
-            mode: "cors",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              id: workout.id,
-              workout_name: updatedWorkout,
-              sets: updatedSets,
-              reps: updatedReps,
-              weight: updatedWeight,
-              editing: false,
-              weekday_index: weekdayIndex,
-              user_token: userToken,
-              workout_index: updatedIndex,
-            }),
-          })
-            .then((res) => {
-              setSuccessAndErrorMessage("Workout updated");
-              console.log({ success: "workout updated" });
-              return res.json;
-            })
-            .then((data) => {
-              console.log(data);
-            })
-            .catch(function (error) {
-              setSuccessAndErrorMessage("Failed to update the workout");
-              console.log(error);
-            });
-        }}
+        onClick={() => saveWorkout(workout.id).catch(() => {})}
       >
         ✅
       </button>
@@ -149,10 +110,30 @@ function ShowProgram({
   weekdayIndex,
   userToken,
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: wo.id });
+
   return (
-    <div className="workout-div">
+    <div
+      className="workout-div"
+      ref={setNodeRef}
+      style={{
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        transition,
+      }}
+    >
       {/* TODO: Change each class name */}
-      <span className="workout-title">{wo.workout_index}.</span>
+      <button
+        type="button"
+        className="saveAndDeleteButton drag-handle"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        ⠿
+      </button>
       <span className="workout-title">{wo.workout_name}</span>
       <span className="workout-title">{wo.sets}</span>
       <span className="workout-title">{wo.reps}</span>
@@ -162,7 +143,7 @@ function ShowProgram({
         onClick={() => {
           setWorkouts(
             workouts.map((wo2) => {
-              if (wo2.id == wo.id) {
+              if (wo2.id === wo.id) {
                 wo2.editing = true;
               }
               return wo2;
@@ -218,8 +199,8 @@ function App() {
   const [newSets, setNewSets] = useState("");
   const [newWeight, setNewWeight] = useState("");
   const [workouts, setWorkouts] = useState([]);
+  const [drafts, setDrafts] = useState({});
   const [successAndErrorMessage, setSuccessAndErrorMessage] = useState("");
-  const [workoutIndex, setWorkoutIndex] = useState("");
 
   const [userToken, setUserToken] = useState("");
 
@@ -234,9 +215,188 @@ function App() {
   ];
 
   const [weekdayIndex, setWeekdayIndex] = useState(new Date().getDay());
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    }),
+  );
+
+  const updateDraft = (id, field, value) => {
+    setDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [id]: {
+        ...currentDrafts[id],
+        [field]: value,
+      },
+    }));
+  };
+
+  const getNextWorkoutIndex = () => {
+    const maxWorkoutIndex = workouts
+      .filter((wo) => wo.weekday_index === weekdayIndex)
+      .reduce(
+        (maxIndex, wo) => Math.max(maxIndex, Number(wo.workout_index) || 0),
+        0,
+      );
+
+    return maxWorkoutIndex + 1;
+  };
+
+  const saveWorkout = (id, assignedWorkoutIndex) => {
+    const workout = workouts.find((wo) => wo.id === id);
+    const draft = drafts[id];
+    const isMoving = workout?.weekday_index !== weekdayIndex;
+
+    if (!workout) {
+      return Promise.reject(new Error("Workout not found"));
+    }
+
+    if (!draft && !isMoving) {
+      setWorkouts((currentWorkouts) =>
+        currentWorkouts.map((wo) =>
+          wo.id === id ? { ...wo, editing: false } : wo,
+        ),
+      );
+      return Promise.resolve();
+    }
+
+    const savedWorkoutIndex =
+      assignedWorkoutIndex ?? (isMoving ? getNextWorkoutIndex() : workout.workout_index);
+    const updated = {
+      ...workout,
+      ...draft,
+      weekday_index: weekdayIndex,
+      workout_index: savedWorkoutIndex,
+      editing: false,
+    };
+
+    return fetch(`${import.meta.env.VITE_API_URL}/update`, {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: updated.id,
+        workout_name: updated.workout_name,
+        sets: updated.sets,
+        reps: updated.reps,
+        weight: updated.weight,
+        editing: false,
+        weekday_index: updated.weekday_index,
+        user_token: userToken,
+        workout_index: updated.workout_index,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to update the workout");
+        }
+
+        setWorkouts((currentWorkouts) =>
+          currentWorkouts.map((wo) => (wo.id === id ? { ...wo, ...updated } : wo)),
+        );
+        setDrafts((currentDrafts) => {
+          const remainingDrafts = { ...currentDrafts };
+          delete remainingDrafts[id];
+          return remainingDrafts;
+        });
+        setSuccessAndErrorMessage("Workout updated");
+        return res;
+      })
+      .catch((error) => {
+        setSuccessAndErrorMessage("Failed to update the workout");
+        throw error;
+      });
+  };
+
+  const handleSaveAll = async () => {
+    const editingWorkouts = workouts.filter((wo) => wo.editing === true);
+    let nextWorkoutIndex = workouts
+      .filter((wo) => wo.weekday_index === weekdayIndex)
+      .reduce(
+        (maxIndex, wo) => Math.max(maxIndex, Number(wo.workout_index) || 0),
+        0,
+      );
+    const assignedWorkoutIndexes = {};
+
+    editingWorkouts.forEach((wo) => {
+      if (wo.weekday_index !== weekdayIndex) {
+        nextWorkoutIndex += 1;
+        assignedWorkoutIndexes[wo.id] = nextWorkoutIndex;
+      }
+    });
+
+    const results = await Promise.allSettled(
+      editingWorkouts.map((wo) =>
+        saveWorkout(wo.id, assignedWorkoutIndexes[wo.id]),
+      ),
+    );
+    const failures = results.filter((result) => result.status === "rejected").length;
+
+    setSuccessAndErrorMessage(
+      failures === 0
+        ? "All workouts saved"
+        : `${failures} workout${failures === 1 ? "" : "s"} failed to save`,
+    );
+  };
+
+  const handleDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return;
+
+    const currentDayWorkouts = workouts
+      .filter((wo) => wo.weekday_index === weekdayIndex && !wo.editing)
+      .sort(compareWorkoutOrder);
+    const oldIndex = currentDayWorkouts.findIndex((wo) => wo.id === active.id);
+    const newIndex = currentDayWorkouts.findIndex((wo) => wo.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedWorkouts = arrayMove(currentDayWorkouts, oldIndex, newIndex);
+    const changedItems = reorderedWorkouts
+      .map((wo, index) => ({ id: wo.id, workout_index: index }))
+      .filter((item, index) => item.workout_index !== currentDayWorkouts[index].workout_index);
+
+    if (changedItems.length === 0) return;
+
+    const previousWorkouts = workouts;
+    const updatedIndexes = new Map(
+      reorderedWorkouts.map((wo, index) => [wo.id, index]),
+    );
+    const optimisticallyUpdatedWorkouts = workouts.map((wo) =>
+      updatedIndexes.has(wo.id)
+        ? { ...wo, workout_index: updatedIndexes.get(wo.id) }
+        : wo,
+    );
+
+    setWorkouts(optimisticallyUpdatedWorkouts);
+    fetch(`${import.meta.env.VITE_API_URL}/reorder`, {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_token: userToken,
+        items: changedItems,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to reorder workouts");
+        }
+        setSuccessAndErrorMessage("Workout order updated");
+      })
+      .catch((error) => {
+        setWorkouts(previousWorkouts);
+        setSuccessAndErrorMessage("Failed to reorder workouts");
+        console.log(error);
+      });
+  };
 
   // const [hiddenButton, setHiddenButton] = useState(true);
-  // const hiddenButton = workouts.filter((wo) => wo.editing == true).length === 0;
+  // const hiddenButton = workouts.filter((wo) => wo.editing === true).length === 0;
   // const hiddenButton = workouts.every((wo) => !wo.editing);
 
   useEffect(() => {
@@ -263,13 +423,15 @@ function App() {
 
   const isButtonDisabled =
     typeof newSets !== "number" ||
-    newSets == "" ||
+    newSets === "" ||
     typeof newReps !== "number" ||
-    newReps == "" ||
+    newReps === "" ||
     typeof newWeight !== "number" ||
-    newWeight == "" ||
+    newWeight === "" ||
     typeof newWorkout !== "string" ||
-    newWorkout == "";
+    newWorkout === "";
+
+  
 
   return (
     <main>
@@ -299,6 +461,7 @@ function App() {
       </div>
       <div id="workout-section">
         <div id="workout-heading">
+          <span aria-hidden="true" />
           <span className="workout-title-heading">Workout</span>
           <span className="workout-title-heading">Sets</span>
           <span className="workout-title-heading">Reps</span>
@@ -308,7 +471,7 @@ function App() {
             onClick={() => {
               setWorkouts(
                 workouts.map((wo) => {
-                  if (weekdayIndex == wo.weekday_index) {
+                  if (weekdayIndex === wo.weekday_index) {
                     wo.editing = true;
 
                     fetch(`${import.meta.env.VITE_API_URL}/update`, {
@@ -350,22 +513,36 @@ function App() {
             Edit All
           </button>
         </div>
-        <ul id="workoutplan-container">
-          {workouts
-            .filter((wo) => wo.weekday_index === weekdayIndex && !wo.editing)
-            .sort((a, b) => a.workout_index - b.workout_index)
-            .map((wo) => (
-              <ShowProgram
-                wo={wo}
-                key={wo.id}
-                workouts={workouts}
-                setWorkouts={setWorkouts}
-                setSuccessAndErrorMessage={setSuccessAndErrorMessage}
-                weekdayIndex={weekdayIndex}
-                userToken={userToken}
-              />
-            ))}
-        </ul>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={workouts
+              .filter((wo) => wo.weekday_index === weekdayIndex && !wo.editing)
+              .sort(compareWorkoutOrder)
+              .map((wo) => wo.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul id="workoutplan-container">
+              {workouts
+                .filter((wo) => wo.weekday_index === weekdayIndex && !wo.editing)
+                .sort(compareWorkoutOrder)
+                .map((wo) => (
+                  <ShowProgram
+                    wo={wo}
+                    key={wo.id}
+                    workouts={workouts}
+                    setWorkouts={setWorkouts}
+                    setSuccessAndErrorMessage={setSuccessAndErrorMessage}
+                    weekdayIndex={weekdayIndex}
+                    userToken={userToken}
+                  />
+                ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       </div>
       <div id="change-day-button-div">
         <button
@@ -373,7 +550,7 @@ function App() {
           onClick={() => {
             if (weekdayIndex > 0) {
               setWeekdayIndex(weekdayIndex - 1);
-            } else if (weekdayIndex == 0) {
+            } else if (weekdayIndex === 0) {
               setWeekdayIndex(6);
             }
           }}
@@ -391,14 +568,6 @@ function App() {
       </div>
       <h3 id="add-workout-title">Add Workout</h3>
       <div className="workout-container">
-        <span>#:</span>
-        <input
-          value={workoutIndex}
-          id="workout-input"
-          onChange={(e) => {
-            setWorkoutIndex(e.target.value);
-          }}
-        />
         <span>Workout Name:</span>
         <input
           value={newWorkout}
@@ -446,6 +615,7 @@ function App() {
         onClick={() => {
           if (isButtonDisabled) return;
           let id = Math.floor(Math.random() * 1000000000);
+          const newWorkoutIndex = getNextWorkoutIndex();
 
           setWorkouts([
             ...workouts,
@@ -457,7 +627,7 @@ function App() {
               weight: newWeight,
               workout_name: newWorkout,
               weekday_index: weekdayIndex,
-              workout_index: workoutIndex,
+               workout_index: newWorkoutIndex,
             },
           ]);
           console.log(weekdayIndex);
@@ -466,7 +636,6 @@ function App() {
           setNewReps("");
           setNewWeight("");
           setNewSets("");
-          setWorkoutIndex("");
           // console.log([...workouts], "Workout array");
           fetch(`${import.meta.env.VITE_API_URL}/add`, {
             method: "POST",
@@ -483,7 +652,7 @@ function App() {
               workout_name: newWorkout,
               weekday_index: weekdayIndex,
               user_token: userToken,
-              workout_index: workoutIndex,
+               workout_index: newWorkoutIndex,
             }),
           })
             .then((res) => {
@@ -505,6 +674,7 @@ function App() {
         <ul>
           {workouts
             .filter((wo) => wo.editing)
+            .sort(compareWorkoutOrder)
             .map((workout) => (
               <EditWorkout
                 workout={workout}
@@ -512,8 +682,10 @@ function App() {
                 workouts={workouts}
                 setWorkouts={setWorkouts}
                 setSuccessAndErrorMessage={setSuccessAndErrorMessage}
-                weekdayIndex={weekdayIndex}
                 userToken={userToken}
+                draft={drafts[workout.id]}
+                updateDraft={updateDraft}
+                saveWorkout={saveWorkout}
               />
             ))}
         </ul>
@@ -521,46 +693,7 @@ function App() {
         <button
           className="save-all-button"
           hidden={workouts.every((wo) => !wo.editing)}
-          onClick={() => {
-            setWorkouts(
-              workouts.map((wo) => {
-                if (wo.editing == true) {
-                  wo.editing = false;
-                  wo.id = wo.id;
-                  fetch(`${import.meta.env.VITE_API_URL}/update`, {
-                    method: "POST",
-                    mode: "cors",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      id: wo.id,
-                      workout_name: wo.workout_name,
-                      sets: wo.sets,
-                      reps: wo.reps,
-                      weight: wo.weight,
-                      editing: false,
-                      weekday_index: weekdayIndex,
-                      user_token: userToken,
-                      workout_index: wo.workout_index,
-                    }),
-                  })
-                    .then((res) => {
-                      return res.json();
-                    })
-                    .then((data) => {
-                      console.log(data);
-                    })
-                    .catch(function (error) {
-                      setSuccessAndErrorMessage("Workouts NOT ready for edit");
-                      console.log(error);
-                    });
-                }
-                console.log(wo, "checker");
-                return wo;
-              }),
-            );
-          }}
+          onClick={handleSaveAll}
         >
           Save All Workouts
         </button>

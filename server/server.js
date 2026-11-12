@@ -113,6 +113,62 @@ app.post("/update", (req, res) => {
   res.send({ success: "ok" });
 });
 
+async function reorderWorkouts(token, items) {
+  const ids = items.map((item) => item.id);
+  const workoutIndexes = items.map((item) => item.workout_index);
+
+  await sql.begin(async (transaction) => {
+    const ownedWorkouts = await transaction`
+      select id
+      from fitness_app
+      where user_token = ${token}
+        and id = any(${ids}::bigint[])
+    `;
+
+    if (ownedWorkouts.length !== ids.length) {
+      throw new Error("One or more workouts do not belong to this user");
+    }
+
+    await transaction`
+      update fitness_app as workout
+      set workout_index = updates.workout_index
+      from unnest(
+        ${ids}::bigint[],
+        ${workoutIndexes}::integer[]
+      ) as updates(id, workout_index)
+      where workout.id = updates.id
+        and workout.user_token = ${token}
+    `;
+  });
+}
+
+app.post("/reorder", async (req, res) => {
+  const { user_token: token, items } = req.body;
+
+  if (
+    typeof token !== "string" ||
+    token.length === 0 ||
+    !Array.isArray(items) ||
+    items.length === 0 ||
+    items.some(
+      (item) =>
+        !item ||
+        !Number.isInteger(item.id) ||
+        !Number.isInteger(item.workout_index),
+    )
+  ) {
+    return res.status(400).send({ error: "Invalid reorder request" });
+  }
+
+  try {
+    await reorderWorkouts(token, items);
+    return res.send({ success: "ok" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({ error: "Failed to reorder workouts" });
+  }
+});
+
 async function deleteWorkout(id, token) {
   await sql`delete from fitness_app where id = ${id} and user_token = ${token}`;
 }

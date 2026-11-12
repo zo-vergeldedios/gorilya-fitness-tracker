@@ -159,10 +159,11 @@ h2 {
 }
 
 .workout-div {
-  width: 500px;
+  width: 100%;
+  max-width: 760px;
   display: grid;
-  grid-template-columns: 5px minmax(240px, 1fr) 70px 80px 80px 80px;
-  gap: 0 20px;
+  grid-template-columns: 44px minmax(160px, 1fr) 70px 80px 80px auto;
+  gap: 0 12px;
 }
 
 .workout-title {
@@ -171,9 +172,10 @@ h2 {
 
 #workout-heading {
   display: grid;
-  grid-template-columns: minmax(250px, 1fr) 80px 80px 80px 80px;
-  width: 500px;
-  gap: 0 20px;
+  grid-template-columns: 44px minmax(160px, 1fr) 70px 80px 80px auto;
+  width: 100%;
+  max-width: 760px;
+  gap: 0 12px;
   margin-top: 10px;
   color: var(--accent);
   font-weight: 700;
@@ -187,13 +189,13 @@ ul {
 }
 
 .edit-button {
-  align-self: end;
+  align-self: start;
   background-color: var(--accent);
   color: white;
   border: none;
   padding: 2px 5px;
   border-radius: 3px;
-  margin-left: 20px;
+  margin-top: 10px;
 }
 
 .edit-all-button {
@@ -201,6 +203,7 @@ ul {
   color: white;
   border: none;
   border-radius: 3px;
+  padding: 6px 10px;
   font-weight: 700;
   margin-left: 4px;
 }
@@ -251,6 +254,20 @@ ul {
   margin-left: 5px;
 }
 
+.drag-handle {
+  flex: 0 0 auto;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 .workout-checker {
   font-weight: 900;
   font-size: 30px;
@@ -284,17 +301,24 @@ ul {
   margin-top: 5px;
 }
 
-@media (max-width: 445px) {
+@media (max-width: 600px) {
   #workout-heading {
     display: grid;
-    grid-template-columns: 158px 34px 34px 34px auto;
-    width: 240px;
-    gap: 0 10px;
+    grid-template-columns: 44px minmax(0, 1fr) 34px 34px 40px auto;
+    width: 100%;
+    max-width: none;
+    gap: 0 4px;
     margin-top: 10px;
     margin-bottom: 7px;
     color: var(--accent);
     font-weight: 700;
-    font-size: 12px;
+    font-size: 10px;
+  }
+
+  .workout-title-heading {
+    min-width: 0;
+    text-align: center;
+    line-height: 1.1;
   }
 
   #username-div {
@@ -315,7 +339,7 @@ ul {
     color: white;
     border: none;
     border-radius: 3px;
-    padding: 5px 8px 4px 8px;
+    padding: 7px 10px 6px 10px;
     font-size: 10px;
     font-weight: 700;
     margin-left: 16px;
@@ -325,21 +349,26 @@ ul {
   .edit-all-button:hover {
     background: none;
     border: 1px solid var(--accent);
-    padding: 4px 7px 3px 7px;
+    padding: 6px 9px 5px 9px;
     color: var(--accent);
     border-radius: 3px;
     cursor: pointer;
   }
 
   .workout-div {
-    grid-template-columns: 2px 145px 22px 22px 22px auto;
-    width: 240px;
-    gap: 0 24px;
+    grid-template-columns: 44px minmax(0, 1fr) 34px 34px 40px auto;
+    width: 100%;
+    max-width: none;
+    gap: 0 4px;
     font-size: 12px;
   }
 
   .workout-title {
     margin-top: 10px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   #workout-section {
@@ -353,7 +382,6 @@ ul {
   .edit-button {
     padding: 3px 4px;
     font-size: 11px;
-    margin-left: -2px;
   }
 
   #day-of-week-h2 {
