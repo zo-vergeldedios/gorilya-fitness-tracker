@@ -128,7 +128,7 @@ h3 {
   border: none;
   padding: 4px 8px;
   border-radius: 3px;
-  margin: 5px 4px;
+  min-height: 32px;
   font-weight: 700;
 }
 
@@ -146,6 +146,53 @@ h3 {
   flex-direction: column;
   align-items: center;
   margin: 20px 0;
+}
+
+#change-day-button-div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 380px;
+  margin: 12px auto;
+}
+
+.day-navigation-buttons {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+#day-of-week {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+}
+
+#day-of-week h2 {
+  white-space: nowrap;
+}
+
+.add-workout-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+#add-workout-title {
+  text-align: center;
+}
+
+.add-workout-section #add-workout-button {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 h2 {
@@ -203,9 +250,11 @@ ul {
   color: white;
   border: none;
   border-radius: 3px;
-  padding: 6px 10px;
+  padding: 4px 6px;
+  font-size: 12px;
   font-weight: 700;
-  margin-left: 4px;
+  margin-left: 0;
+  align-self: center;
 }
 
 .edit-all-button:hover {
@@ -275,6 +324,48 @@ ul {
   margin-top: -10px;
 }
 
+.empty-state {
+  max-width: 380px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.empty-state h3 {
+  margin-bottom: 6px;
+  color: var(--accent);
+  font-size: 1.17em;
+}
+
+.empty-state p {
+  color: rgba(250, 250, 250, 0.7);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.authenticated-content {
+  order: 2;
+  animation: content-fade-in 200ms ease-out;
+}
+
+.add-workout-section {
+  order: 3;
+}
+
+@keyframes content-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .authenticated-content {
+    animation: none;
+  }
+}
+
 .glow-text {
   animation-name: glow;
   animation-duration: 2s;
@@ -308,6 +399,7 @@ ul {
     width: 100%;
     max-width: none;
     gap: 0 4px;
+    align-items: center;
     margin-top: 10px;
     margin-bottom: 7px;
     color: var(--accent);
@@ -317,7 +409,7 @@ ul {
 
   .workout-title-heading {
     min-width: 0;
-    text-align: center;
+    text-align: left;
     line-height: 1.1;
   }
 
@@ -339,17 +431,16 @@ ul {
     color: white;
     border: none;
     border-radius: 3px;
-    padding: 7px 10px 6px 10px;
-    font-size: 10px;
+    padding: 4px 5px;
+    font-size: 9px;
     font-weight: 700;
-    margin-left: 16px;
-    margin-top: -3px;
+    margin-left: 8px;
   }
 
   .edit-all-button:hover {
     background: none;
     border: 1px solid var(--accent);
-    padding: 6px 9px 5px 9px;
+    padding: 3px 4px;
     color: var(--accent);
     border-radius: 3px;
     cursor: pointer;
@@ -382,6 +473,7 @@ ul {
   .edit-button {
     padding: 3px 4px;
     font-size: 11px;
+    margin-left: 4px;
   }
 
   #day-of-week-h2 {
@@ -392,6 +484,12 @@ ul {
   }
 
   #change-day-button-div {
-    margin-bottom: 60px;
+    gap: 6px;
+    margin-bottom: 30px;
+    padding: 0 8px;
+  }
+
+  .day-navigation-buttons {
+    gap: 6px;
   }
 }

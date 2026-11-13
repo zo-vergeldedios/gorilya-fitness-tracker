@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   closestCenter,
   DndContext,
@@ -203,6 +203,10 @@ function App() {
   const [successAndErrorMessage, setSuccessAndErrorMessage] = useState("");
 
   const [userToken, setUserToken] = useState("");
+  const [isLoadingWorkouts, setIsLoadingWorkouts] = useState(false);
+  const [workoutLoadError, setWorkoutLoadError] = useState("");
+  const [lookupAttempt, setLookupAttempt] = useState(0);
+  const usernameInputRef = useRef(null);
 
   const weekdays = [
     "Sunday",
@@ -356,7 +360,10 @@ function App() {
     const reorderedWorkouts = arrayMove(currentDayWorkouts, oldIndex, newIndex);
     const changedItems = reorderedWorkouts
       .map((wo, index) => ({ id: wo.id, workout_index: index }))
-      .filter((item, index) => item.workout_index !== currentDayWorkouts[index].workout_index);
+      .filter(
+        (item, index) =>
+          item.workout_index !== Number(reorderedWorkouts[index].workout_index),
+      );
 
     if (changedItems.length === 0) return;
 
@@ -408,13 +415,78 @@ function App() {
   // TODO - Get all of the components out of App().
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/list?token=${userToken}`)
-      .then((res) => res.json())
-      .then((res) => {
-        setWorkouts(res);
-        // setWorkouts(res.filter(wo => wo.user_token === our_user_token))
-      });
-  }, [userToken]);
+    const normalizedToken = userToken.trim().toLowerCase();
+    const controller = new AbortController();
+    let ignore = false;
+
+    if (normalizedToken === "") {
+      return () => controller.abort();
+    }
+
+    const loadWorkouts = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      if (ignore) return;
+
+      setIsLoadingWorkouts(true);
+      setWorkoutLoadError("");
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        let timeoutId;
+        const requestController = new AbortController();
+        const abortRequest = () => requestController.abort();
+        controller.signal.addEventListener("abort", abortRequest, { once: true });
+
+        try {
+          const timeout = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              requestController.abort();
+              reject(new Error("Request timed out"));
+            }, 8000);
+          });
+          const request = fetch(
+            `${import.meta.env.VITE_API_URL}/list?token=${encodeURIComponent(normalizedToken)}`,
+            { signal: requestController.signal },
+          );
+          const response = await Promise.race([request, timeout]);
+
+          if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (!Array.isArray(data)) {
+            throw new Error("Invalid workout response");
+          }
+
+          if (!ignore) {
+            setWorkouts(data);
+            setIsLoadingWorkouts(false);
+          }
+          return;
+        } catch {
+          if (timeoutId) clearTimeout(timeoutId);
+          if (controller.signal.aborted || ignore) return;
+
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+          } else {
+            setIsLoadingWorkouts(false);
+            setWorkoutLoadError("Unable to load workouts.");
+          }
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+          controller.signal.removeEventListener("abort", abortRequest);
+        }
+      }
+    };
+
+    loadWorkouts();
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [userToken, lookupAttempt]);
   // TODO:
   // - add user_token column to workout table -
   // - add state for user_token in App
@@ -431,7 +503,7 @@ function App() {
     typeof newWorkout !== "string" ||
     newWorkout === "";
 
-  
+  const hasValidUsername = workouts.length > 0;
 
   return (
     <main>
@@ -440,25 +512,163 @@ function App() {
       <div id="username-div">
         <p id="username-p">User Name:</p>
         <input
+          ref={usernameInputRef}
           value={userToken}
-          onChange={(e) => setUserToken(e.target.value)}
+          autoFocus={userToken.trim() === ""}
+          onChange={(e) => {
+            const value = e.target.value;
+            setUserToken(value);
+            setDrafts({});
+            if (value.trim() === "") {
+              setIsLoadingWorkouts(false);
+              setWorkoutLoadError("");
+              setWorkouts([]);
+            }
+          }}
         />
       </div>
 
       <div>
-        {workouts.length > 0 ? (
+        {isLoadingWorkouts ? (
+          <h3 className="workout-checker">Loading workouts...</h3>
+        ) : workoutLoadError ? (
+          <div className="empty-state">
+            <h3>Couldn't load your workouts</h3>
+            <p>Check your connection and try again.</p>
+            <button type="button" onClick={() => setLookupAttempt((attempt) => attempt + 1)}>
+              Retry
+            </button>
+          </div>
+        ) : hasValidUsername ? (
           <h3 className="workout-checker glow-text">LET'S GO!!!</h3>
+        ) : userToken.trim() === "" ? (
+          <div className="empty-state">
+            <h3 className="workout-checker glow-text">Let's Get Started</h3>
+            <p>
+              Enter your name above to load your workouts, or pick a new one to start your own log.
+            </p>
+          </div>
         ) : (
-          <h3 className="workout-checker">Input a workout</h3>
+          <div className="empty-state">
+            <h3>Nothing planned for {weekdays[weekdayIndex]}</h3>
+            <p>Tap Add Workout to log your first exercise.</p>
+          </div>
         )}
       </div>
 
-      <div className="workout-day">
-        <h2 id="day-of-week-h2">Day of Week:</h2>
-        <span id="day-of-week">
-          <h2>{weekdays[weekdayIndex]}</h2>
-        </span>
+      <div className="add-workout-section">
+        <h3 id="add-workout-title">Add Workout</h3>
+        <div className="workout-container">
+          <span>Workout Name:</span>
+          <input
+            value={newWorkout}
+            id="workout-input"
+            onChange={(e) => {
+              setNewWorkout(e.target.value);
+            }}
+          />
+
+          <span>Sets:</span>
+          <input
+            value={newSets}
+            type="number"
+            id="sets-input"
+            onChange={(e) => {
+              setNewSets(Number(e.target.value));
+            }}
+          />
+
+          <span>Reps:</span>
+          <input
+            value={newReps}
+            id="reps-input"
+            type="number"
+            onChange={(e) => {
+              setNewReps(Number(e.target.value));
+            }}
+          />
+
+          <span>Weight:</span>
+          <input
+            value={newWeight}
+            id="weight-input"
+            type="number"
+            onChange={(e) => {
+              setNewWeight(Number(e.target.value));
+            }}
+          />
+        </div>
+        <ShowErrorOrSuccessMessage message={successAndErrorMessage} />
+        <button
+          id="add-workout-button"
+          className={isButtonDisabled ? "disabled" : ""}
+          disabled={isButtonDisabled && userToken.trim() !== ""}
+          onClick={() => {
+            const trimmedUserToken = userToken.trim();
+
+            if (trimmedUserToken === "") {
+              usernameInputRef.current?.focus();
+              setSuccessAndErrorMessage("Enter your name first.");
+              return;
+            }
+
+            if (isButtonDisabled) return;
+
+            const id = Math.floor(Math.random() * 1000000000);
+            const newWorkoutIndex = getNextWorkoutIndex();
+            const workoutToAdd = {
+              editing: false,
+              id,
+              reps: newReps,
+              sets: newSets,
+              weight: newWeight,
+              workout_name: newWorkout,
+              weekday_index: weekdayIndex,
+              workout_index: newWorkoutIndex,
+            };
+
+            fetch(`${import.meta.env.VITE_API_URL}/add`, {
+              method: "POST",
+              mode: "cors",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                ...workoutToAdd,
+                user_token: trimmedUserToken,
+              }),
+            })
+              .then((res) => {
+                if (!res.ok) {
+                  throw new Error("Failed to add the workout");
+                }
+
+                setNewWorkout("");
+                setNewReps("");
+                setNewWeight("");
+                setNewSets("");
+                setSuccessAndErrorMessage("Workout successfully added");
+                setLookupAttempt((attempt) => attempt + 1);
+                return res;
+              })
+              .catch((error) => {
+                setSuccessAndErrorMessage("Failed to add the workout");
+                console.log(error);
+              });
+          }}
+        >
+          Add Workout
+        </button>
       </div>
+
+      {hasValidUsername && (
+        <div className="authenticated-content">
+        <div className="workout-day">
+          <h2 id="day-of-week-h2">Day of Week:</h2>
+          <span id="day-of-week">
+            <h2>{weekdays[weekdayIndex]}</h2>
+          </span>
+        </div>
       <div id="workout-section">
         <div id="workout-heading">
           <span aria-hidden="true" />
@@ -545,130 +755,29 @@ function App() {
         </DndContext>
       </div>
       <div id="change-day-button-div">
-        <button
-          className="change-day-button"
-          onClick={() => {
-            if (weekdayIndex > 0) {
-              setWeekdayIndex(weekdayIndex - 1);
-            } else if (weekdayIndex === 0) {
-              setWeekdayIndex(6);
-            }
-          }}
-        >
-          Previous Day
-        </button>
-        <button
-          className="change-day-button"
-          onClick={() => {
-            setWeekdayIndex((weekdayIndex + 1) % 7);
-          }}
-        >
-          Next Day
-        </button>
+        <div className="day-navigation-buttons">
+          <button
+            className="change-day-button"
+            onClick={() => {
+              if (weekdayIndex > 0) {
+                setWeekdayIndex(weekdayIndex - 1);
+              } else if (weekdayIndex === 0) {
+                setWeekdayIndex(6);
+              }
+            }}
+          >
+            Previous Day
+          </button>
+          <button
+            className="change-day-button"
+            onClick={() => {
+              setWeekdayIndex((weekdayIndex + 1) % 7);
+            }}
+          >
+            Next Day
+          </button>
+        </div>
       </div>
-      <h3 id="add-workout-title">Add Workout</h3>
-      <div className="workout-container">
-        <span>Workout Name:</span>
-        <input
-          value={newWorkout}
-          id="workout-input"
-          onChange={(e) => {
-            setNewWorkout(e.target.value);
-          }}
-        />
-
-        <span>Sets:</span>
-        <input
-          value={newSets}
-          type="number"
-          id="sets-input"
-          onChange={(e) => {
-            setNewSets(Number(e.target.value));
-          }}
-        />
-
-        <span>Reps:</span>
-        <input
-          value={newReps}
-          id="reps-input"
-          type="number"
-          onChange={(e) => {
-            setNewReps(Number(e.target.value));
-          }}
-        />
-
-        <span>Weight:</span>
-        <input
-          value={newWeight}
-          id="weight-input"
-          type="number"
-          onChange={(e) => {
-            setNewWeight(Number(e.target.value));
-          }}
-        />
-      </div>
-      <ShowErrorOrSuccessMessage message={successAndErrorMessage} />
-      <button
-        id="add-workout-button"
-        className={isButtonDisabled ? "disabled" : ""}
-        disabled={isButtonDisabled}
-        onClick={() => {
-          if (isButtonDisabled) return;
-          let id = Math.floor(Math.random() * 1000000000);
-          const newWorkoutIndex = getNextWorkoutIndex();
-
-          setWorkouts([
-            ...workouts,
-            {
-              editing: false,
-              id: id,
-              reps: newReps,
-              sets: newSets,
-              weight: newWeight,
-              workout_name: newWorkout,
-              weekday_index: weekdayIndex,
-               workout_index: newWorkoutIndex,
-            },
-          ]);
-          console.log(weekdayIndex);
-          // workouts = [1, 2, 3]
-          setNewWorkout(""); // !== -> newWorkout = ''
-          setNewReps("");
-          setNewWeight("");
-          setNewSets("");
-          // console.log([...workouts], "Workout array");
-          fetch(`${import.meta.env.VITE_API_URL}/add`, {
-            method: "POST",
-            mode: "cors",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              editing: false,
-              id: id,
-              reps: newReps,
-              sets: newSets,
-              weight: newWeight,
-              workout_name: newWorkout,
-              weekday_index: weekdayIndex,
-              user_token: userToken,
-               workout_index: newWorkoutIndex,
-            }),
-          })
-            .then((res) => {
-              console.log({ success: "workout-added" });
-              setSuccessAndErrorMessage("Workout successfully added");
-              return res.json;
-            })
-            .catch(function (error) {
-              setSuccessAndErrorMessage("Failed to add the workout");
-              console.log(`Failed to add workout: ${error}`);
-            });
-        }}
-      >
-        Add Workout
-      </button>
-
       <div id="edit-workout-container">
         <h3>Edit Workout</h3>
         <ul>
@@ -698,6 +807,8 @@ function App() {
           Save All Workouts
         </button>
       </div>
+      </div>
+      )}
     </main>
   );
 }
