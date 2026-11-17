@@ -15,6 +15,7 @@ import {
 } from "@dnd-kit/sortable";
 // import fitDexLogo from "./assets/fitDex-logo.png";
 import gorilyaLogo from "./assets/gorilya.png";
+import RestTimer from "./RestTimer";
 // import "./App.css";
 
 function compareWorkoutOrder(a, b) {
@@ -507,30 +508,37 @@ function App() {
 
   return (
     <main>
-      <img src={gorilyaLogo} alt="GorilyaFitnessTracker" />
+      <div className="app-header">
+        <img src={gorilyaLogo} alt="GorilyaFitnessTracker" />
 
-      <div id="username-div">
-        <p id="username-p">User Name:</p>
-        <input
-          ref={usernameInputRef}
-          value={userToken}
-          autoFocus={userToken.trim() === ""}
-          onChange={(e) => {
-            const value = e.target.value;
-            setUserToken(value);
-            setDrafts({});
-            if (value.trim() === "") {
-              setIsLoadingWorkouts(false);
-              setWorkoutLoadError("");
-              setWorkouts([]);
-            }
-          }}
-        />
+        <div id="username-div">
+          <p id="username-p">User Name:</p>
+          <input
+            ref={usernameInputRef}
+            value={userToken}
+            autoFocus={userToken.trim() === ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              setUserToken(value);
+              setDrafts({});
+              if (value.trim() === "") {
+                setIsLoadingWorkouts(false);
+                setWorkoutLoadError("");
+                setWorkouts([]);
+              }
+            }}
+          />
+        </div>
       </div>
 
       <div>
         {isLoadingWorkouts ? (
-          <h3 className="workout-checker">Loading workouts...</h3>
+          <h3 className="workout-checker glow-text" role="status" aria-live="polite">
+            Loading workouts
+            <span className="loading-dot" aria-hidden="true">.</span>
+            <span className="loading-dot" aria-hidden="true">.</span>
+            <span className="loading-dot" aria-hidden="true">.</span>
+          </h3>
         ) : workoutLoadError ? (
           <div className="empty-state">
             <h3>Couldn't load your workouts</h3>
@@ -754,6 +762,7 @@ function App() {
           </SortableContext>
         </DndContext>
       </div>
+      {hasValidUsername ? <RestTimer /> : null}
       <div id="change-day-button-div">
         <div className="day-navigation-buttons">
           <button

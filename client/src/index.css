@@ -56,10 +56,15 @@ img {
 }
 
 #workoutplan-container {
-  height: 560px;
+  height: auto;
   width: 100%;
+  max-height: 560px;
   overflow-y: auto;
   overflow-x: auto;
+}
+
+#workoutplan-container:empty {
+  height: auto;
 }
 
 .workout-container {
@@ -72,6 +77,98 @@ img {
 main {
   padding-bottom: 200px;
 }
+
+.app-header {
+  display: contents;
+}
+
+.rest-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: fit-content;
+  margin-inline: auto;
+  margin-top: 8px;
+  margin-bottom: 36px;
+}
+
+.rest-timer-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  margin-bottom: 5px;
+  white-space: nowrap;
+}
+
+.rest-timer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+}
+
+.rest-timer-actions,
+.rest-timer-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.rest-timer .change-day-button {
+  min-height: 36px;
+  min-width: 40px;
+  padding: 3px 6px;
+}
+
+.rest-timer-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rest-timer-control svg {
+  width: 16px;
+  height: 16px;
+}
+
+.edit-all-button:hover,
+.rest-timer .change-day-button[aria-pressed="true"] {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.rest-timer-countdown {
+  flex: 0 0 4ch;
+  min-width: 4ch;
+  height: 36px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rest-timer-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 #add-workout-title {
   margin-top: 20px;
 }
@@ -156,7 +253,7 @@ h3 {
   gap: 8px;
   width: 100%;
   max-width: 380px;
-  margin: 12px auto;
+  margin: 0 auto;
 }
 
 .day-navigation-buttons {
@@ -386,6 +483,43 @@ ul {
   }
 }
 
+.loading-dot {
+  opacity: 0;
+  animation: loading-dot 1.2s linear infinite;
+}
+
+.loading-dot:nth-of-type(1) {
+  animation-delay: 0s;
+}
+
+.loading-dot:nth-of-type(2) {
+  animation-delay: 0.3s;
+}
+
+.loading-dot:nth-of-type(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes loading-dot {
+  0%,
+  24.99%,
+  50%,
+  100% {
+    opacity: 0;
+  }
+  25%,
+  49.99% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-dot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 #successAndErrorMessage {
   color: var(--accent);
   font-size: 14px;
@@ -393,6 +527,16 @@ ul {
 }
 
 @media (max-width: 600px) {
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+    width: 100%;
+    margin: 8px 0 12px;
+    padding: 0 16px;
+  }
+
   #workout-heading {
     display: grid;
     grid-template-columns: 44px minmax(0, 1fr) 34px 34px 40px auto;
@@ -414,15 +558,50 @@ ul {
   }
 
   #username-div {
-    margin-top: 100px;
+    flex: 1;
+    min-width: 0;
+    margin-top: 20px;
+    margin-bottom: 20px;
   }
 
   img {
-    max-width: 50px;
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    max-width: 52px;
     opacity: 0.6;
-    top: 0px;
-    right: -10px;
-    position: absolute;
+    margin: 0;
+    position: static;
+    transform: translateY(-16px);
+  }
+
+  #username-p {
+    margin: 0 0 3px;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  #username-div input {
+    width: 100%;
+    min-height: 36px;
+    margin-left: 0;
+    padding: 3px 15px;
+    font-size: 16px;
+  }
+
+  .rest-timer {
+    margin-top: 8px;
+    margin-bottom: 28px;
+  }
+
+  .rest-timer-row {
+    gap: 3px;
+    padding: 0;
+  }
+
+  .edit-all-button:hover,
+  .rest-timer .change-day-button[aria-pressed="true"] {
+    padding: 3px 4px;
   }
 
   .edit-all-button {
@@ -491,5 +670,11 @@ ul {
 
   .day-navigation-buttons {
     gap: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rest-timer .glow-text {
+    animation: none;
   }
 }
