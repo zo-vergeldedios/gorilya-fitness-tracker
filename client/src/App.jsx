@@ -347,6 +347,49 @@ function App() {
     );
   };
 
+  const handleDeleteAll = async () => {
+    const editingWorkouts = workouts.filter((wo) => wo.editing === true);
+
+    setWorkouts((currentWorkouts) =>
+      currentWorkouts.filter((wo) => wo.editing !== true),
+    );
+    setDrafts((currentDrafts) => {
+      const remainingDrafts = { ...currentDrafts };
+      editingWorkouts.forEach((wo) => {
+        delete remainingDrafts[wo.id];
+      });
+      return remainingDrafts;
+    });
+
+    const results = await Promise.allSettled(
+      editingWorkouts.map((wo) =>
+        fetch(`${import.meta.env.VITE_API_URL}/delete`, {
+          method: "POST",
+          mode: "cors",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: wo.id,
+            user_token: userToken,
+          }),
+        }).then((res) => {
+          if (!res.ok) {
+            throw new Error("Failed to delete the workout");
+          }
+          return res;
+        }),
+      ),
+    );
+    const failures = results.filter((result) => result.status === "rejected").length;
+
+    setSuccessAndErrorMessage(
+      failures === 0
+        ? "All workouts deleted"
+        : `${failures} workout${failures === 1 ? "" : "s"} failed to delete`,
+    );
+  };
+
   const handleDragEnd = ({ active, over }) => {
     if (!over || active.id === over.id) return;
 
@@ -808,13 +851,22 @@ function App() {
             ))}
         </ul>
 
-        <button
-          className="save-all-button"
-          hidden={workouts.every((wo) => !wo.editing)}
-          onClick={handleSaveAll}
-        >
-          Save All Workouts
-        </button>
+        <div className="edit-workout-actions">
+          <button
+            className="save-all-button"
+            hidden={workouts.every((wo) => !wo.editing)}
+            onClick={handleSaveAll}
+          >
+            Save All Workouts
+          </button>
+          <button
+            className="save-all-button"
+            hidden={workouts.every((wo) => !wo.editing)}
+            onClick={handleDeleteAll}
+          >
+            Delete All Workouts
+          </button>
+        </div>
       </div>
       </div>
       )}
